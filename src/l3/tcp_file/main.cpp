@@ -2,6 +2,7 @@
 #include <exception>
 #include <iomanip>
 #include <iostream>
+#include <fstream>
 #include <iterator>
 #include <string>
 #include <thread>
@@ -52,21 +53,6 @@ int main(int argc, const char * const argv[])
     sock = open_socket(argv[1],argv[2]);
 
     const std::string host_name = { argv[1] };
-//    const struct hostent *remote_host { getaddrinfo(host_name.c_str()) };
-
-//    struct sockaddr_in server_addr =
-//    {
-//        .sin_family = AF_INET,
-//        .sin_port = htons(std::stoi(argv[2]))
-//    };
-
-//    server_addr.sin_addr.s_addr = *reinterpret_cast<const in_addr_t*>(remote_host->h_addr);
-
-//    if (connect(sock, reinterpret_cast<const sockaddr* const>(&server_addr), sizeof(server_addr)) != 0)
-//    {
-//        std::cerr << sock_wrap.get_last_error_string() << std::endl;
-//        return EXIT_FAILURE;
-//    }
 
     std::string request;
     std::vector<char> buffer;
@@ -76,12 +62,7 @@ int main(int argc, const char * const argv[])
 
     const IoctlType flag = 1;
 
-    // Put the socket in non-blocking mode:
-//#if !defined(_WIN32)
-//    if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) | O_NONBLOCK) < 0)
-//#else
     if (ioctl(sock, FIONBIO, const_cast<IoctlType*>(&flag)) < 0)
-//#endif
     {
         std::cerr << sock_wrap.get_last_error_string() << std::endl;
         return EXIT_FAILURE;
@@ -98,14 +79,17 @@ int main(int argc, const char * const argv[])
 
     while (true)
     {
+        request = "file ";
+        std::string filepath;
+
         std::cout << "> " << std::flush;
-        if (!std::getline(std::cin, request)) break;
+        if (!std::getline(std::cin, filepath)) break;
+
+        request += filepath;
 
         std::cout
             << "Sending request: \"" << request << "\"..."
             << std::endl;
-
-        request += "\r\n";
 
         if (!send_request(sock, request))
         {
@@ -113,9 +97,19 @@ int main(int argc, const char * const argv[])
             return EXIT_FAILURE;
         }
 
-        std::cout
-            << "Request was sent, reading response..."
-            << std::endl;
+//        std::cout
+//            << "Request was sent, reading response..."
+//            << std::endl;
+
+        std::fstream file;
+        file.open("downloaded_file.txt", std::fstream::out | std::fstream::binary);
+        if(file.is_open()){
+            std::cout<<"[LOG] : File Created.\n";
+        }
+        else{
+            std::cout<<"[ERROR] : File creation failed, Exiting.\n";
+            exit(EXIT_FAILURE);
+        }
 
         std::this_thread::sleep_for(2ms);
 
@@ -131,7 +125,14 @@ int main(int argc, const char * const argv[])
             if (recv_bytes > 0)
             {
                 buffer[recv_bytes] = '\0';
-                std::cout << "------------\n" << std::string(buffer.begin(), std::next(buffer.begin(), recv_bytes)) << std::endl;
+                //std::cout << "------------\n" << std::string(buffer.begin(), std::next(buffer.begin(), recv_bytes)) << std::endl;
+                std::string str(buffer.data());
+                if (str.find("File not found") == std::string::npos){
+                    file << buffer.data();
+                }else{
+                    std::cout << "File was not found on server!" << std::endl;
+                    break;
+                }
                 continue;
             }
             else if (-1 == recv_bytes)
@@ -144,6 +145,9 @@ int main(int argc, const char * const argv[])
 
             break;
         }
+
+        file.close();
+
     }
 
     return EXIT_SUCCESS;
