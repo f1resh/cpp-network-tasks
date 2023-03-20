@@ -10,6 +10,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include "file_struct.h"
 
 #include <cerrno>
 
@@ -116,6 +117,7 @@ public:
     {
         size_t transmit_bytes_count = 0;
         const auto size = buffer.size();
+        std::cout << size << std::endl;
 
         while (transmit_bytes_count != size)
         {
@@ -132,24 +134,46 @@ public:
         return true;
     }
 
-    bool send_file(fs::path const& file_path)
+    void send_msg(const std::string& msg){
+        send(client_sock_, msg.c_str(), msg.length(), 0);
+    }
+
+    bool send_file(const file_struct& fstruct)
     {
         std::vector<char> buffer(buffer_size);
-        std::ifstream file_stream(file_path, std::ifstream::binary);
+        std::ifstream file_stream(fstruct.filepath, std::ifstream::binary);
+        uint64_t filesize = fileSize(fstruct.filepath);
+
+        int tmp_length = fstruct.length;
 
         if (!file_stream) return false;
 
-        std::cout << "Sending file " << file_path << "..." << std::endl;
-        while (file_stream)
+        if (fstruct.offset+fstruct.length > filesize){
+            std::cout << "Requested offset + length exceed filesize!" << std::endl;
+            return false;
+        }
+
+        file_stream.seekg(fstruct.offset, std::ios::beg);
+
+        std::cout << "Sending file " << fstruct.filepath << " with offset " << fstruct.offset << " and length " << fstruct.length << " ... " << std::endl;
+        while (file_stream && tmp_length)
         {
-            file_stream.read(&buffer[0], buffer.size());
+            if (tmp_length >= buffer.size()){
+                file_stream.read(&buffer[0], buffer.size());
+                tmp_length -= buffer.size();
+            }else{
+                buffer.resize(tmp_length);
+                file_stream.read(&buffer[0], tmp_length);
+                tmp_length = 0;
+            }
+
             if (!send_buffer(buffer)) return false;
         }
 
         return true;
     }
 
-    std::string get_request()
+    file_struct get_request()
     {
         std::array<char, MAX_PATH + 1> buffer;
         size_t recv_bytes = 0;
@@ -186,7 +210,9 @@ public:
         auto result = std::string(buffer.begin(), buffer.begin() + recv_bytes);
         std::cout << "Request = \"" << result << "\"" << std::endl;
 
-        return result;
+        file_struct fstruct(result);
+
+        return fstruct;
     }
 
 private:
@@ -202,6 +228,11 @@ private:
 
         return false;
     };
+
+    uint64_t fileSize(fs::path const& file_path){
+
+        return std::filesystem::file_size(file_path);
+    }
 
 private:
     socket_wrapper::Socket client_sock_;
@@ -220,13 +251,13 @@ public:
             << std::endl;
     }
 
-    std::optional<fs::path> recv_file_path()
+    std::optional<file_struct> recv_file_path()
     {
         auto request_data = tsr_.get_request();
-        if (!request_data.size()) return std::nullopt;
+        if (!request_data.filepath.size()) return std::nullopt;
 
         auto cur_path = fs::current_path().wstring();
-        auto file_path = fs::weakly_canonical(request_data).wstring();
+        auto file_path = fs::weakly_canonical(request_data.filepath).wstring();
 
 #if defined(_WIN32)
         std::transform(cur_path.begin(), cur_path.end(), cur_path.begin(),
@@ -241,14 +272,15 @@ public:
             file_path = file_path.substr(cur_path.length());
         }
 
-        return fs::weakly_canonical(cur_path + separ + file_path);
+        return request_data; //fs::weakly_canonical(cur_path + separ + file_path);
     }
 
-    bool send_file(const fs::path &file_path)
+    bool send_file(const file_struct& fstruct)
     {
-        if (!(fs::exists(file_path) && fs::is_regular_file(file_path))) return false;
 
-        return tsr_.send_file(file_path);
+        if (!(fs::exists(fstruct.filepath) && fs::is_regular_file(fstruct.filepath))) return false;
+
+        return tsr_.send_file(fstruct);
     }
 
     bool process()
@@ -258,7 +290,7 @@ public:
 
         if (std::nullopt != file_to_send)
         {
-            std::cout << "Trying to send " << *file_to_send << "..." << std::endl;
+            std::cout << "Trying to send " << file_to_send->filepath << "..." << std::endl;
             if (send_file(*file_to_send))
             {
                 std::cout << "File was sent." << std::endl;
@@ -266,6 +298,8 @@ public:
             else
             {
                 std::cerr << "File sending error!" << std::endl;
+                tsr_.send_msg("-1");
+                return false;
             }
             result = true;
         }
