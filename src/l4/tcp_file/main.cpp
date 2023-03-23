@@ -131,7 +131,7 @@ int main(int argc, const char * const argv[])
                     file << buffer.data();
 
                 }else{
-                    std::cout << "File was not found on server!" << std::endl;
+                    std::cout << "File error on server!" << std::endl;
                     return EXIT_FAILURE;
                 }
                 continue;

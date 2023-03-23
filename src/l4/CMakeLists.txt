@@ -5,6 +5,7 @@ project(cpp-network-lesson-4 C CXX)
 
 add_subdirectory("reuse_addr_experiment")
 add_subdirectory("mt_server")
+add_subdirectory("asio_mt_server")
 add_subdirectory("select_aio_server")
 add_subdirectory("tcp_file")
 

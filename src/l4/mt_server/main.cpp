@@ -117,7 +117,7 @@ public:
     {
         size_t transmit_bytes_count = 0;
         const auto size = buffer.size();
-        std::cout << size << std::endl;
+        //std::cout << size << std::endl;
 
         while (transmit_bytes_count != size)
         {
@@ -143,6 +143,8 @@ public:
         std::vector<char> buffer(buffer_size);
         std::ifstream file_stream(fstruct.filepath, std::ifstream::binary);
         uint64_t filesize = fileSize(fstruct.filepath);
+
+        if (fstruct.offset == -1 || fstruct.length == -1) return false;
 
         int tmp_length = fstruct.length;
 
