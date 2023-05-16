@@ -29,8 +29,10 @@ uint16_t checksum(void *data, int len){
 
     for ( sum = 0; len > 1; len -= 2 )
         sum += *buf++;
+    
     if ( len == 1 )
         sum += *(uint8_t*)buf;
+    
     sum = (sum >> 16) + (sum & 0xFFFF);
     sum += (sum >> 16);
     result = ~sum;
@@ -45,11 +47,9 @@ void print_icmp_packet(icmp_packet &pkt){
     std::cout << "==================================================" << std::endl;
 }
 
-int main(int argc, char const *argv[])
-{
+int main(int argc, char const *argv[]){
 
-    if (argc != 2)
-    {
+    if (argc != 2){
         std::cout << "Usage: " << argv[0] << " <hostname>" << std::endl;
         return EXIT_FAILURE;
     }
@@ -83,8 +83,7 @@ int main(int argc, char const *argv[])
     socket_wrapper::SocketWrapper sock_wrap;
     socket_wrapper::Socket sock = {AF_INET,SOCK_RAW,IPPROTO_ICMP};
 
-    if (!sock)
-    {
+    if (!sock){
         std::cerr << sock_wrap.get_last_error_string() << std::endl;
         close(sock);
         return EXIT_FAILURE;
@@ -134,36 +133,29 @@ int main(int argc, char const *argv[])
         //send packet
         //print_icmp_packet(my_pkt);
         clock_gettime(CLOCK_MONOTONIC, &time_start);
-        if (sendto(sock, &my_pkt, ICMP_PKT_SIZE, 0, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) <= 0)
-        {
+        if (sendto(sock, &my_pkt, ICMP_PKT_SIZE, 0, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) <= 0){
             std::cout << "Packet Sending Failed!" << std::endl;
             flag_sent=false;
         };
 
         //receive packet
         if (recvfrom(sock, (char*)response, 56, 0, reinterpret_cast<struct sockaddr*>(&address_recv), &add_len) <= 0
-              && sent_count>0 && flag_sent)
-        {
+              && sent_count>0 && flag_sent){
             std::cout << "Packet receive failed!" <<std::endl;
         }
         else
         {
             clock_gettime(CLOCK_MONOTONIC, &time_end);
             p_pkt = (struct icmp_packet*)(response + sizeof(struct ip));
-            //print_icmp_packet(*p_pkt);
 
             double timeElapsed = ((double)(time_end.tv_nsec - time_start.tv_nsec))/1000000.0;
             time = (time_end.tv_sec- time_start.tv_sec) * 1000.0 + timeElapsed;
 
             // if packet was not sent, don't receive
-            if(flag_sent)
-            {
-                    if (p_pkt->hdr.type!=0 && p_pkt->hdr.code!=0)
-                    {
+            if(flag_sent){
+                    if (p_pkt->hdr.type!=0 && p_pkt->hdr.code!=0){
                         std::cout << "Response with type = " << p_pkt->hdr.type << "and code = " << p_pkt->hdr.code << std::endl;
-                    }
-                    else
-                    {
+                    }else{
                         //checking checksum
                         cksum = p_pkt->hdr.checksum;
                         p_pkt->hdr.checksum = 0;
