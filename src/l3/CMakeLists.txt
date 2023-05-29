@@ -5,4 +5,6 @@ project(cpp-network-lesson-3 C CXX)
 add_subdirectory("broadcast_client")
 add_subdirectory("broadcast_server")
 add_subdirectory("tcp_client")
+add_subdirectory("tcp_file")
+add_subdirectory("tcp_server")
 
