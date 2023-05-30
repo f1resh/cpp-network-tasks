@@ -15,6 +15,7 @@
 #include <libtorrent/write_resume_data.hpp>
 #include <libtorrent/error_code.hpp>
 #include <libtorrent/magnet_uri.hpp>
+#include <libtorrent/torrent.hpp>
 
 
 namespace
@@ -56,13 +57,17 @@ void sighandler(int) { shut_down = true; }
 
 int main(int argc, char const* argv[]) try
 {
-    if (argc != 2)
+    if (argc != 3 || ((strcmp(argv[1], "1")) && strcmp(argv[1], "2")) )
     {
         std::cerr
-            << "usage: " << argv[0] << " <magnet-url>"
+            << "usage: " << argv[0] << " <mode> <source>" << std::endl
+            << "modes: 1 - magnet URL, 2 - torrent file"
             << std::endl;
         return EXIT_FAILURE;
     }
+
+    auto const mode = std::string{argv[1]};
+    auto const source = std::string{argv[2]};
 
     lt::session_params params = lt::session_params();
 
@@ -76,18 +81,24 @@ int main(int argc, char const* argv[]) try
 
     // load resume data from disk and pass it in as we add the magnet link
     auto buf = load_file(".resume_file");
+    lt::add_torrent_params torr_params;
+    if (mode == "1") {
+        torr_params = lt::parse_magnet_uri(source);
+    } else {
+        //handle torrent file
+        const lt::torrent_info info{source};
+        torr_params = lt::parse_magnet_uri(lt::make_magnet_uri(info));
+        //lt::add_torrent_params file = lt::load_torrent_file(source);
+    }
 
-    lt::add_torrent_params magnet = lt::parse_magnet_uri(argv[1]);
     if (buf.size())
     {
         lt::add_torrent_params atp = lt::read_resume_data(buf);
-        if (atp.info_hash == magnet.info_hash) magnet = std::move(atp);
+        if (atp.info_hash == torr_params.info_hash) torr_params = std::move(atp);
     }
-
     // save in current dir
-    magnet.save_path = ".";
-    ses.async_add_torrent(std::move(magnet));
-
+    torr_params.save_path = ".";
+    ses.async_add_torrent(std::move(torr_params));
     // this is the handle we'll set once we get the notification of it being
     // added
     lt::torrent_handle h;
